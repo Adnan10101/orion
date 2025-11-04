@@ -259,40 +259,33 @@ def delete_session_chats(session_id):
 
 @app.route('/admin/migrate_database', methods=['POST'])
 def migrate_database():
-    """Complete database migration for image_analysis table"""
+    """Migrate ONLY image_analysis table - chat_history untouched"""
     try:
         conn = get_db()
         cur = conn.cursor()
         
-        print("Starting migration...")
+        print("Starting migration for image_analysis only...")
         
-        # Migration SQL
+        # Migration SQL - ONLY for image_analysis
         migration_sql = """
-        -- Add new columns to image_analysis
-        DO $$
-        BEGIN
-            -- Add session_id if it doesn't exist
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'image_analysis' AND column_name = 'session_id'
-            ) THEN
-                ALTER TABLE image_analysis ADD COLUMN session_id VARCHAR(100);
-            END IF;
-            
-            -- Add original_image_url if it doesn't exist
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'image_analysis' AND column_name = 'original_image_url'
-            ) THEN
-                ALTER TABLE image_analysis ADD COLUMN original_image_url TEXT;
-            END IF;
-        END $$;
+        -- Drop and recreate image_analysis with all required fields
+        DROP TABLE IF EXISTS image_analysis CASCADE;
         
-        -- Create indexes
-        CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
-        CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat_history(timestamp DESC);
-        CREATE INDEX IF NOT EXISTS idx_image_session ON image_analysis(session_id);
-        CREATE INDEX IF NOT EXISTS idx_image_timestamp ON image_analysis(timestamp DESC);
+        CREATE TABLE image_analysis (
+            analysis_id SERIAL PRIMARY KEY,
+            patient_id VARCHAR(50) NOT NULL,
+            session_id VARCHAR(100),
+            image_type VARCHAR(50),
+            original_image_url TEXT,
+            segmented_image_url TEXT,
+            description TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Create indexes for image_analysis only
+        CREATE INDEX idx_image_patient ON image_analysis(patient_id);
+        CREATE INDEX idx_image_session ON image_analysis(session_id);
+        CREATE INDEX idx_image_timestamp ON image_analysis(timestamp DESC);
         """
         
         cur.execute(migration_sql)
@@ -313,41 +306,27 @@ def migrate_database():
             for col in cur.fetchall()
         ]
         
-        # Verify chat_history structure
+        # Check indexes for image_analysis
         cur.execute("""
-            SELECT column_name, data_type, is_nullable
-            FROM information_schema.columns 
-            WHERE table_name = 'chat_history'
-            ORDER BY ordinal_position
-        """)
-        
-        chat_columns = [
-            {"name": col[0], "type": col[1], "nullable": col[2]} 
-            for col in cur.fetchall()
-        ]
-        
-        # Check indexes
-        cur.execute("""
-            SELECT tablename, indexname
+            SELECT indexname
             FROM pg_indexes
             WHERE schemaname = 'public' 
-            AND tablename IN ('chat_history', 'image_analysis')
-            ORDER BY tablename, indexname
+            AND tablename = 'image_analysis'
+            ORDER BY indexname
         """)
         
-        indexes = [{"table": idx[0], "index": idx[1]} for idx in cur.fetchall()]
+        indexes = [idx[0] for idx in cur.fetchall()]
         
         cur.close()
         conn.close()
         
         return jsonify({
             "status": "success",
-            "message": "Database migration completed successfully",
-            "tables": {
-                "image_analysis": image_columns,
-                "chat_history": chat_columns
-            },
-            "indexes": indexes
+            "message": "image_analysis table recreated successfully (chat_history unchanged)",
+            "image_analysis": {
+                "columns": image_columns,
+                "indexes": indexes
+            }
         }), 200
         
     except Exception as e:
@@ -356,6 +335,65 @@ def migrate_database():
             "error": str(e)
         }), 500
 
+
+@app.route('/admin/verify_schema', methods=['GET'])
+def verify_schema():
+    """Verify current database schema"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Get image_analysis columns
+        cur.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'image_analysis'
+            ORDER BY ordinal_position
+        """)
+        
+        image_columns = cur.fetchall()
+        
+        # Get chat_history columns to verify it's untouched
+        cur.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'chat_history'
+            ORDER BY ordinal_position
+        """)
+        
+        chat_columns = cur.fetchall()
+        
+        # Count records
+        cur.execute("SELECT COUNT(*) FROM image_analysis")
+        image_count = cur.fetchone()[0]
+        
+        cur.execute("SELECT COUNT(*) FROM chat_history")
+        chat_count = cur.fetchone()[0]
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "tables": {
+                "image_analysis": {
+                    "columns": [
+                        {"name": col[0], "type": col[1], "nullable": col[2]} 
+                        for col in image_columns
+                    ],
+                    "record_count": image_count
+                },
+                "chat_history": {
+                    "columns": [
+                        {"name": col[0], "type": col[1], "nullable": col[2]} 
+                        for col in chat_columns
+                    ],
+                    "record_count": chat_count
+                }
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/admin/verify_schema', methods=['GET'])
 def verify_schema():
