@@ -1,0 +1,20 @@
+version: 1.0
+runtime: python311
+build:
+  commands:
+    build:
+      - pip install -r requirements.txt
+run:
+  runtime-version: 3.11
+  command: gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 app:app
+  network:
+    port: 8080
+  env:
+    - name: DB_HOST
+      value: REPLACE_WITH_DB_HOST
+    - name: DB_NAME
+      value: REPLACE_WITH_DB_NAME
+    - name: DB_USER
+      value: REPLACE_WITH_DB_USER
+    - name: DB_PASSWORD
+      value: REPLACE_WITH_DB_PASSWORD
