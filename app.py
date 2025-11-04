@@ -17,6 +17,29 @@ def get_db():
         port=5432
     )
 
+# ✅ ADD ROOT ENDPOINT
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({
+        "status": "healthy",
+        "service": "Medical Records API",
+        "version": "1.0",
+        "endpoints": {
+            "GET /table/<table_name>": "View all records in a table",
+            "POST /table/<table_name>": "Insert a new record"
+        },
+        "available_tables": [
+            "chat_history",
+            "image_analysis",
+            "patients_registration",
+            "medicines",
+            "lab_tests",
+            "vitals",
+            "medical_history",
+            "prescription"
+        ]
+    })
+
 # Endpoint 1: GET - View all records in a table
 @app.route('/table/<table_name>', methods=['GET'])
 def get_table(table_name):
@@ -34,11 +57,8 @@ def get_table(table_name):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Get all records from the table
         cur.execute(f"SELECT * FROM {table_name}")
         records = cur.fetchall()
-        
         cur.close()
         conn.close()
         
@@ -74,7 +94,6 @@ def insert_into_table(table_name):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Handle different tables
         if table_name == 'chat_history':
             cur.execute("""
                 INSERT INTO chat_history (session_id, patient_id, prompt, response, timestamp)
@@ -102,7 +121,6 @@ def insert_into_table(table_name):
             ))
         
         else:
-            # For other tables, build dynamic INSERT
             columns = ', '.join(data.keys())
             placeholders = ', '.join(['%s'] * len(data))
             values = tuple(data.values())
