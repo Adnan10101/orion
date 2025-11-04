@@ -257,6 +257,136 @@ def delete_session_chats(session_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/admin/migrate_database', methods=['POST'])
+def migrate_database():
+    """Complete database migration for image_analysis table"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        print("Starting migration...")
+        
+        # Migration SQL
+        migration_sql = """
+        -- Add new columns to image_analysis
+        DO $$
+        BEGIN
+            -- Add session_id if it doesn't exist
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'image_analysis' AND column_name = 'session_id'
+            ) THEN
+                ALTER TABLE image_analysis ADD COLUMN session_id VARCHAR(100);
+            END IF;
+            
+            -- Add original_image_url if it doesn't exist
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'image_analysis' AND column_name = 'original_image_url'
+            ) THEN
+                ALTER TABLE image_analysis ADD COLUMN original_image_url TEXT;
+            END IF;
+        END $$;
+        
+        -- Create indexes
+        CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_history(session_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat_history(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_image_session ON image_analysis(session_id);
+        CREATE INDEX IF NOT EXISTS idx_image_timestamp ON image_analysis(timestamp DESC);
+        """
+        
+        cur.execute(migration_sql)
+        conn.commit()
+        
+        print("Migration complete, verifying...")
+        
+        # Verify image_analysis structure
+        cur.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'image_analysis'
+            ORDER BY ordinal_position
+        """)
+        
+        image_columns = [
+            {"name": col[0], "type": col[1], "nullable": col[2]} 
+            for col in cur.fetchall()
+        ]
+        
+        # Verify chat_history structure
+        cur.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'chat_history'
+            ORDER BY ordinal_position
+        """)
+        
+        chat_columns = [
+            {"name": col[0], "type": col[1], "nullable": col[2]} 
+            for col in cur.fetchall()
+        ]
+        
+        # Check indexes
+        cur.execute("""
+            SELECT tablename, indexname
+            FROM pg_indexes
+            WHERE schemaname = 'public' 
+            AND tablename IN ('chat_history', 'image_analysis')
+            ORDER BY tablename, indexname
+        """)
+        
+        indexes = [{"table": idx[0], "index": idx[1]} for idx in cur.fetchall()]
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Database migration completed successfully",
+            "tables": {
+                "image_analysis": image_columns,
+                "chat_history": chat_columns
+            },
+            "indexes": indexes
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
+
+
+@app.route('/admin/verify_schema', methods=['GET'])
+def verify_schema():
+    """Verify current database schema"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Get image_analysis columns
+        cur.execute("""
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_name = 'image_analysis'
+            ORDER BY ordinal_position
+        """)
+        
+        image_columns = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "table": "image_analysis",
+            "columns": [
+                {"name": col[0], "type": col[1], "nullable": col[2]} 
+                for col in image_columns
+            ]
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
