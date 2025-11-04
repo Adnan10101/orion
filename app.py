@@ -108,16 +108,27 @@ def insert_into_table(table_name):
             ))
             
         elif table_name == 'image_analysis':
+            # ✅ UPDATED: Now handles all required fields
             cur.execute("""
-                INSERT INTO image_analysis (patient_id, image_type, segmented_image_url, description, timestamp)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO image_analysis (
+                    patient_id, 
+                    session_id,
+                    image_type, 
+                    original_image_url,
+                    segmented_image_url, 
+                    description, 
+                    timestamp
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, to_timestamp(%s))
                 RETURNING analysis_id
             """, (
                 data.get('patient_id'),
-                data.get('image_type'),
+                data.get('session_id'),
+                data.get('image_type', 'surgical_frame'),
+                data.get('original_image_url'),  # ✅ NEW
                 data.get('segmented_image_url'),
                 data.get('description'),
-                datetime.now()
+                data.get('timestamp')  # ✅ CHANGED: Use timestamp from request
             ))
         
         else:
