@@ -395,36 +395,5 @@ def verify_schema():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/admin/verify_schema', methods=['GET'])
-def verify_schema():
-    """Verify current database schema"""
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        
-        # Get image_analysis columns
-        cur.execute("""
-            SELECT column_name, data_type, is_nullable
-            FROM information_schema.columns 
-            WHERE table_name = 'image_analysis'
-            ORDER BY ordinal_position
-        """)
-        
-        image_columns = cur.fetchall()
-        
-        cur.close()
-        conn.close()
-        
-        return jsonify({
-            "table": "image_analysis",
-            "columns": [
-                {"name": col[0], "type": col[1], "nullable": col[2]} 
-                for col in image_columns
-            ]
-        }), 200
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
