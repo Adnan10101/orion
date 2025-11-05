@@ -96,7 +96,7 @@ def insert_into_table(table_name):
         
         if table_name == 'chat_history':
             cur.execute("""
-                INSERT INTO chat_history ( patient_id, prompt, response, timestamp)
+                INSERT INTO chat_history (session_id, patient_id, prompt, response, timestamp)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING chat_id
             """, (
