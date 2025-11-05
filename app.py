@@ -119,7 +119,7 @@ def insert_into_table(table_name):
                     description, 
                     timestamp
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, to_timestamp(%s))
+                VALUES (%s,  %s, %s, %s, %s, to_timestamp(%s))
                 RETURNING analysis_id
             """, (
                 data.get('patient_id'),
