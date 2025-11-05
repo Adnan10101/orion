@@ -100,7 +100,7 @@ def insert_into_table(table_name):
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING chat_id
             """, (
-               
+                data.get('session_id'),
                 data.get('patient_id'),
                 data.get('prompt'),
                 data.get('response'),
