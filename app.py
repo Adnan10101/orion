@@ -96,11 +96,11 @@ def insert_into_table(table_name):
         
         if table_name == 'chat_history':
             cur.execute("""
-                INSERT INTO chat_history (session_id, patient_id, prompt, response, timestamp)
+                INSERT INTO chat_history ( patient_id, prompt, response, timestamp)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING chat_id
             """, (
-                data.get('session_id'),
+               
                 data.get('patient_id'),
                 data.get('prompt'),
                 data.get('response'),
@@ -112,7 +112,7 @@ def insert_into_table(table_name):
             cur.execute("""
                 INSERT INTO image_analysis (
                     patient_id, 
-                    session_id,
+                   
                     image_type, 
                     original_image_url,
                     segmented_image_url, 
@@ -123,7 +123,7 @@ def insert_into_table(table_name):
                 RETURNING analysis_id
             """, (
                 data.get('patient_id'),
-                data.get('session_id'),
+               
                 data.get('image_type', 'surgical_frame'),
                 data.get('original_image_url'),  # ✅ NEW
                 data.get('segmented_image_url'),
